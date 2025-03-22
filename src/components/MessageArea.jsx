@@ -1,52 +1,43 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReplayIcon from "@mui/icons-material/Replay";
+// import ReplayIcon from "@mui/icons-material/Replay";
 import UndoIcon from "@mui/icons-material/Undo";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import SendIcon from "@mui/icons-material/Send";
+import Pagination from "../components/Pagination";
 
 const MessageArea = () => {
-  const [inputMessage, setInputMessage] = useState(""); // State for user input
-  const [messages, setMessages] = useState([]); // State for conversation messages
-  const [lastUserMessage, setLastUserMessage] = useState(null); // State for the last user message
-  const messagesEndRef = useRef(null); // Ref for scrolling to the bottom
+  const [inputMessage, setInputMessage] = useState("");
+  const [allMessages, setAllMessages] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const messagesEndRef = useRef(null);
 
-  // Fetch conversation history from the backend
   useEffect(() => {
     const fetchMessages = async () => {
       try {
         const response = await fetch(
-          "http://localhost:8000/conversation-history?vendor_name=muzammil&page=1&page_size=10"
+          `http://localhost:8000/conversation-history?vendor_name=muzammil&page=${currentPage}&page_size=${pageSize}`
         );
         const data = await response.json();
-        setMessages(
-          data.messages.map((msg) => ({
-            text: msg.message,
-            userType: msg.user_type,
-            timestamp: msg.timestamp,
-          }))
-        );
+        setAllMessages(data.messages);
       } catch (error) {
         console.error("Error fetching messages:", error);
       }
     };
 
     fetchMessages();
-  }, []);
+  }, [currentPage]);
 
-  // Scroll to the bottom of the messages
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
+  }, [allMessages]);
 
-  const handleSendMessage = (message) => {
+  const handleSendMessage = async (message) => {
     if (message.trim()) {
-      // Store the last user message before sending
-      setLastUserMessage(message);
-
-      // Add user message to the conversation
-      setMessages((prevMessages) => [
+  
+      setAllMessages((prevMessages) => [
         ...prevMessages,
         {
           text: message,
@@ -55,116 +46,123 @@ const MessageArea = () => {
         },
       ]);
 
-      // Simulate AI response (you can replace this with actual API call)
-      const aiResponse = `AI response to: ${message}`;
-      setMessages((prevMessages) => [
+      if ((allMessages.length + 1) % pageSize === 0) {
+        setCurrentPage((prevPage) => prevPage + 1);
+      }
+
+      await fetchResponse(message);
+
+      setInputMessage("");
+    }
+  };
+
+  const fetchResponse = async (message) => {
+    try {
+      const response = await fetch("http://localhost:8000/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+
+      const data = await response.json();
+
+      if (data.reply) {
+        setAllMessages((prevMessages) => [
+          ...prevMessages,
+          {
+            text: data.reply,
+            userType: "chatbot",
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error("Error fetching response:", error);
+      setAllMessages((prevMessages) => [
         ...prevMessages,
         {
-          text: aiResponse,
+          text: "Sorry, something went wrong.",
           userType: "chatbot",
           timestamp: new Date().toISOString(),
         },
       ]);
-
-      // Clear input field if it's a new submission
-      if (message === inputMessage) {
-        setInputMessage("");
-      }
     }
   };
 
-  // Clear all messages
   const handleClearMessages = () => {
-    setMessages([]); // Reset messages to an empty array
-    setLastUserMessage(null); // Reset last user message
+    setAllMessages([]);
+    setCurrentPage(1);
   };
 
-  // Undo last message and reply
   const handleUndoMessage = () => {
-    setMessages((prevMessages) => {
+    setAllMessages((prevMessages) => {
       if (prevMessages.length < 2) {
-        return []; // If there are less than two messages, clear all
+        return [];
       }
-      return prevMessages.slice(0, prevMessages.length - 2); // Remove last two messages (user + AI)
+      return prevMessages.slice(0, prevMessages.length - 2);
     });
-    setLastUserMessage(null); // Reset last user message on undo
-  };
-
-  // Retry sending the last message
-  const handleRetryMessage = () => {
-    if (lastUserMessage) {
-      handleSendMessage(lastUserMessage); // Resubmit the last user message
-    }
   };
 
   return (
     <div className="p-4 bg-white rounded-lg shadow-md">
-      <div className="mt-4 flex space-x-2 flex-col">
-        <div className="flex justify-stretch">
-          <button
-            onClick={handleRetryMessage}
-            className="px-4 py-2 bg-gray-300 rounded-md hover:bg-gray-400"
-          >
-            <ReplayIcon className="mb-1" />
-            Retry
-          </button>
-          <button
-            onClick={handleUndoMessage}
-            className="px-4 py-2 bg-gray-300 rounded-md hover:bg-gray-400 ml-2"
-          >
-            <UndoIcon className="mb-1" />
-            Undo
-          </button>
-          <button
-            onClick={handleClearMessages}
-            className="px-4 py-2 bg-gray-300 rounded-md hover:bg-gray-400 ml-2"
-          >
-            <DeleteForeverIcon className="mb-1" />
-            Clear
-          </button>
-        </div>
+      <Pagination
+        currentPage={currentPage}
+        onNextPage={() => setCurrentPage((prev) => prev + 1)}
+        onPreviousPage={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+      />
 
-        {/* Conversation Display Section */}
-        <div className="mt-4 h-64 overflow-y-auto border border-gray-300 p-2 rounded-md">
-          {messages.map((msg, index) => (
-            <div
-              key={index}
-              className={`mb-2 ${
-                msg.userType === "end_user" ? "text-right" : "text-left"
+      <div className="mt-4 h-64 overflow-y-auto border border-gray-300 p-2 rounded-md">
+        {allMessages.map((msg, index) => (
+          <div
+            key={index}
+            className={`mb-2 ${
+              msg.userType === "end_user" ? "text-right" : "text-left"
+            }`}
+          >
+            <span
+              className={`inline-block p-2 rounded-md ${
+                msg.userType === "end_user"
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-200 text-black"
               }`}
             >
-              <span
-                className={`inline-block p-2 rounded-md ${
-                  msg.userType === "end_user"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200 text-black"
-                }`}
-              >
-                {msg.text}
-              </span>
-            </div>
-          ))}
-          {/* Reference for auto-scrolling */}
-          <div ref={messagesEndRef} />
-        </div>
+              {msg.text}
+            </span>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
 
-        {/* Input Section */}
-        <div className="flex justify-stretch mt-2">
-          <textarea
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            placeholder="Type a message..."
-            rows="1"
-            className="w-5/6 p-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            onClick={() => handleSendMessage(inputMessage)}
-            className="px-4 py-2 w-1/6 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <SendIcon className="mb-1" />
-            Submit
-          </button>
-        </div>
+      <div className="flex justify-stretch mt-2">
+        <textarea
+          value={inputMessage}
+          onChange={(e) => setInputMessage(e.target.value)}
+          placeholder="Type a message..."
+          rows="1"
+          className="w-5/6 p-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <button
+          onClick={() => handleSendMessage(inputMessage)}
+          className="px-4 py-2 w-1/6 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <SendIcon className="mb-1" />
+          Submit
+        </button>
+      </div>
+
+      <div className="flex justify-between mt-4">
+        <button
+          onClick={handleUndoMessage}
+          className="px-4 py-2 bg-gray-300 rounded-md hover:bg-gray-400"
+        >
+          <UndoIcon /> Undo
+        </button>
+        <button
+          onClick={handleClearMessages}
+          className="px-4 py-2 bg-gray-300 rounded-md hover:bg-gray-400"
+        >
+          <DeleteForeverIcon /> Clear All
+        </button>
       </div>
     </div>
   );

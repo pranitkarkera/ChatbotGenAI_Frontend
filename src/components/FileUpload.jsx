@@ -22,14 +22,14 @@ const FileUpload = ({ addFile }) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
       setFile(selectedFile);
-      handleUpload(selectedFile); // Call handleUpload with the selected file
+      handleUpload(selectedFile)
     }
   };
 
   const handleUpload = (selectedFile) => {
     if (selectedFile) {
-      addFile(selectedFile); // Add the file to the list
-      setFile(null); // Reset the file input after upload
+      addFile(selectedFile)
+      setFile(null)
     }
   };
 
@@ -39,7 +39,7 @@ const FileUpload = ({ addFile }) => {
         type="file"
         onChange={handleChange}
         onClick={(event) => {
-          event.target.value = null; // Reset the input value to allow re-uploading the same file
+          event.target.value = null;
         }}
       />
       <Button
@@ -47,7 +47,7 @@ const FileUpload = ({ addFile }) => {
         variant="contained"
         startIcon={<CloudUploadIcon />}
         onClick={() => {
-          document.querySelector('input[type="file"]').click(); // Trigger the file input click
+          document.querySelector('input[type="file"]').click()
         }}
       >
         Upload files
