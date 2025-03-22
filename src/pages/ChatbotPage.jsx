@@ -3,7 +3,7 @@ import React from "react";
 // import ModeSelector from "../components/ModeSelector";
 import FileUploader from "../components/FileUploader";
 import MessageArea from "../components/MessageArea";
-import ConversationHistory from "../components/ConversationHistory";
+// import ConversationHistory from "../components/ConversationHistory";
 
 const ChatbotPage = () => {
   // const [mode, setMode] = useState("RAG");
@@ -13,7 +13,7 @@ const ChatbotPage = () => {
       <div>
         {/* <ModeSelector setMode={setMode} /> */}
         <FileUploader />
-        <ConversationHistory />
+        {/* <ConversationHistory /> */}
       </div>
       <div>
         <MessageArea />

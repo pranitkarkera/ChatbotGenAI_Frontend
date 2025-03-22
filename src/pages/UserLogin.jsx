@@ -1,19 +1,18 @@
-// UserLogin.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const UserLogin = () => {
-  const [username, setUsername] = useState(""); // State for username
-  const navigate = useNavigate(); // Hook to navigate programmatically
+  const [username, setUsername] = useState("")
+  const navigate = useNavigate()
 
   const handleSubmit = (e) => {
-    e.preventDefault(); // Prevent default form submission
+    e.preventDefault()
     if (username.trim()) {
       console.log("Username submitted:", username);
-      localStorage.setItem("username", username); // Store username in local storage
-      navigate("/chatbot"); // Navigate to chatbot page on successful login
+      localStorage.setItem("username", username)
+      navigate("/chatbot");
     } else {
-      alert("Please enter a username."); // Alert if username is empty
+      alert("Please enter a username.")
     }
   };
 
