@@ -7,11 +7,9 @@ const Header = () => {
     <div className="bg-blue-500 rounded-xl text-white p-4 text-center">
       <h1 className="text-2xl font-bold">
         <AccountBoxIcon className="mb-1" />
-        PRIVATE GPT
+        GenAI Bot
       </h1>
-      {username && (
-        <p className="mt-2">Welcome, {username}!</p>
-      )}
+      {username && <p className="mt-2">Welcome, {username}!</p>}
     </div>
   );
 };
