@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-// import ReplayIcon from "@mui/icons-material/Replay";
 import UndoIcon from "@mui/icons-material/Undo";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import SendIcon from "@mui/icons-material/Send";
 import Pagination from "../components/Pagination";
+
+const MAX_CHAR_LIMIT = 200; // Set your desired character limit here
 
 const MessageArea = () => {
   const [inputMessage, setInputMessage] = useState("");
@@ -11,81 +12,86 @@ const MessageArea = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
   const messagesEndRef = useRef(null);
+  const username = localStorage.getItem("username");
 
+  // Function to fetch messages from the backend
+  const fetchMessages = async () => {
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/conversation-history?vendor_name=${username}&page=${currentPage}&page_size=${pageSize}`
+      );
+      const data = await response.json();
+      // Format messages to match frontend structure
+      const formattedMessages = data.messages.map((msg) => ({
+        message: msg.message,
+        user_type: msg.user_type,
+        timestamp: msg.timestamp,
+      }));
+      setAllMessages(formattedMessages);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    }
+  };
+
+  // Polling to fetch messages every 2 seconds
   useEffect(() => {
-    const fetchMessages = async () => {
-      try {
-        const response = await fetch(
-          `http://localhost:8000/conversation-history?vendor_name=muzammil&page=${currentPage}&page_size=${pageSize}`
-        );
-        const data = await response.json();
-        setAllMessages(data.messages);
-      } catch (error) {
-        console.error("Error fetching messages:", error);
-      }
-    };
+    fetchMessages(); // Initial fetch
+    const interval = setInterval(fetchMessages, 2000); // Polling every 2 seconds
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, [currentPage, username, pageSize]);
 
-    fetchMessages();
-  }, [currentPage]);
-
+  // Scroll to the bottom of the message area when new messages arrive
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [allMessages]);
 
+  // Function to handle sending a message
   const handleSendMessage = async (message) => {
-    if (message.trim()) {
-  
+    const trimmedMessage = message.trim();
+
+    if (trimmedMessage) {
+      // Optimistically update the UI
       setAllMessages((prevMessages) => [
         ...prevMessages,
         {
-          text: message,
-          userType: "end_user",
+          message: trimmedMessage,
+          user_type: "end_user", // Match backend field name
           timestamp: new Date().toISOString(),
         },
       ]);
 
-      if ((allMessages.length + 1) % pageSize === 0) {
-        setCurrentPage((prevPage) => prevPage + 1);
-      }
+      try {
+        // Send message to backend
+        const response = await fetch("http://127.0.0.1:8000/query/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            vendor_name: username,
+            user_type: "end_user",
+            query: trimmedMessage,
+          }),
+        });
 
-      await fetchResponse(message);
+        if (!response.ok)
+          throw new Error(`HTTP error! status: ${response.status}`);
 
-      setInputMessage("");
-    }
-  };
-
-  const fetchResponse = async (message) => {
-    try {
-      const response = await fetch("http://localhost:8000/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
-      });
-
-      const data = await response.json();
-
-      if (data.reply) {
+        // Clear input field after sending
+        setInputMessage("");
+      } catch (error) {
+        console.error("Error sending message:", error);
+        // Remove optimistic update if failed
+        setAllMessages((prevMessages) => prevMessages.slice(0, -1));
         setAllMessages((prevMessages) => [
           ...prevMessages,
           {
-            text: data.reply,
-            userType: "chatbot",
+            message: "Error connecting to server",
+            user_type: "chatbot",
             timestamp: new Date().toISOString(),
           },
         ]);
       }
-    } catch (error) {
-      console.error("Error fetching response:", error);
-      setAllMessages((prevMessages) => [
-        ...prevMessages,
-        {
-          text: "Sorry, something went wrong.",
-          userType: "chatbot",
-          timestamp: new Date().toISOString(),
-        },
-      ]);
     }
   };
 
@@ -116,17 +122,17 @@ const MessageArea = () => {
           <div
             key={index}
             className={`mb-2 ${
-              msg.userType === "end_user" ? "text-right" : "text-left"
+              msg.user_type === "end_user" ? "text-right" : "text-left"
             }`}
           >
             <span
               className={`inline-block p-2 rounded-md ${
-                msg.userType === "end_user"
+                msg.user_type === "end_user"
                   ? "bg-blue-500 text-white"
                   : "bg-gray-200 text-black"
               }`}
             >
-              {msg.text}
+              {msg.message}
             </span>
           </div>
         ))}
@@ -137,17 +143,41 @@ const MessageArea = () => {
         <textarea
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              if (e.shiftKey) {
+                return; // Allow new line if Shift is pressed
+              }
+              e.preventDefault(); // Prevent default behavior (new line)
+              handleSendMessage(inputMessage); // Send message on Enter
+            }
+          }}
           placeholder="Type a message..."
           rows="1"
+          maxLength={MAX_CHAR_LIMIT} // Set max length for the textarea
           className="w-5/6 p-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+
         <button
           onClick={() => handleSendMessage(inputMessage)}
-          className="px-4 py-2 w-1/6 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={
+            inputMessage.trim().length === 0 ||
+            inputMessage.length > MAX_CHAR_LIMIT
+          } // Disable button if empty or over limit
+          className={`px-4 py-2 w-1/6 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            inputMessage.length > MAX_CHAR_LIMIT
+              ? "opacity-50 cursor-not-allowed"
+              : ""
+          }`}
         >
           <SendIcon className="mb-1" />
-          Submit
+          Send
         </button>
+      </div>
+
+      {/* Display remaining character count */}
+      <div className="mt-2 text-sm text-gray-600">
+        {MAX_CHAR_LIMIT - inputMessage.length} characters remaining
       </div>
 
       <div className="flex justify-between mt-4">
